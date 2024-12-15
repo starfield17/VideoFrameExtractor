@@ -1,4 +1,3 @@
-# Get_frame-csharp-
 ```markdown
 # VideoFrameExtractor
 
