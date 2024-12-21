@@ -7,7 +7,7 @@
 
 ## 功能
 
-- 支持多种视频格式：`mp4`, `avi`, `mkv`, `mov`, `flv`, `wmv`
+- 支持多种视频格式：`mp4`, `avi`, `mkv`, `mov`, `flv`, `wmv`,`webm` 
 - 可处理单个视频文件或整个目录中的视频文件
 - 自动创建输出目录并保存提取的帧
 - 跨平台支持（Windows 和 Linux）
@@ -73,7 +73,8 @@ VideoFrameExtractor /path/to/videos/
 - **mov**
 - **flv**
 - **wmv**
-
+- **webm**
+- 
 ## ffmpeg
 
 本工具内置了适用于不同操作系统的 `ffmpeg` 可执行文件。根据运行环境，`ffmpeg` 会自动选择合适的版本：
