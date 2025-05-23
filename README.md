@@ -24,7 +24,7 @@
 リポジトリをローカルにクローンします：
 
 ```bash
-git clone https://github.com/yourusername/VideoFrameExtractor.git
+git clone https://github.com/starfield17/VideoFrameExtractor.git
 ```
 
 ### ビルド
