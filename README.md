@@ -1,70 +1,70 @@
 # VideoFrameExtractor
 
-## 概要
+## Overview
 
-**VideoFrameExtractor** は、C#で開発されたコマンドラインツールで、動画ファイルからフレームを抽出するために使用します。このツールは多くの一般的な動画フォーマットをサポートし、`ffmpeg`を利用してフレーム抽出を行います。動画ファイルの一括処理が必要なユーザーに最適です。
+**VideoFrameExtractor** is a command-line tool developed in C# for extracting frames from video files. This tool supports many common video formats and uses `ffmpeg` for frame extraction. It is ideal for users who need to process video files in bulk.
 
-## 機能
+## Features
 
-- 多様な動画フォーマットをサポート：`mp4`, `avi`, `mkv`, `mov`, `flv`, `wmv`, `webm`
-- 単一の動画ファイルまたはディレクトリ内の全動画ファイルを処理可能
-- 出力ディレクトリの自動作成と抽出フレームの保存
-- クロスプラットフォーム対応（WindowsとLinux）
-- 内蔵`ffmpeg`管理による使用手順の簡素化
+- Supports various video formats: `mp4`, `avi`, `mkv`, `mov`, `flv`, `wmv`, `webm`
+- Can process a single video file or all video files in a directory
+- Automatically creates output directory and saves extracted frames
+- Cross-platform compatibility (Windows and Linux)
+- Simplified usage through built-in `ffmpeg` management
 
-## インストール
+## Installation
 
-### 必要条件
+### Prerequisites
 
-- [.NET 6.0 SDK](https://dotnet.microsoft.com/download) 以上
-- `ffmpeg`実行ファイル（プロジェクトに内蔵済み）
+- [.NET 6.0 SDK](https://dotnet.microsoft.com/download) or higher
+- `ffmpeg` executable (included with the project)
 
-### ダウンロード
+### Download
 
-リポジトリをローカルにクローンします：
+Clone the repository locally:
 
 ```bash
 git clone https://github.com/starfield17/VideoFrameExtractor.git
 ```
 
-### ビルド
+### Build
 
-プロジェクトディレクトリに移動し、プロジェクトをビルドします：
+Navigate to the project directory and build the project:
 
 ```bash
 cd VideoFrameExtractor
 dotnet build -c Release
 ```
 
-ビルド完了後、実行ファイルは `bin/Release/net6.0` ディレクトリに配置されます。
+After building, the executable will be located in the `bin/Release/net6.0` directory.
 
-## 使用方法
+## Usage
 
-### コマンドライン使用法
+### Command Line Usage
 
 ```bash
-VideoFrameExtractor <動画ファイルまたはディレクトリのパス>
+VideoFrameExtractor <path to video file or directory>
 ```
 
-### パラメータ説明
+### Parameter Description
 
-- `<動画ファイルまたはディレクトリのパス>`：単一の動画ファイルまたは動画ファイルを含むディレクトリを指定します。
+- `<path to video file or directory>`: Specifies a single video file or a directory containing video files.
 
-### 使用例
+### Usage Examples
 
-単一の動画ファイルを処理：
+Process a single video file:
 
 ```bash
 VideoFrameExtractor /path/to/video/sample.mp4
 ```
 
-動画ディレクトリ全体を処理：
+Process an entire video directory:
 
 ```bash
 VideoFrameExtractor /path/to/videos/
 ```
 
-## サポートフォーマット
+## Supported Formats
 
 - **mp4**
 - **avi**
@@ -76,16 +76,16 @@ VideoFrameExtractor /path/to/videos/
 
 ## ffmpeg
 
-このツールには、異なるオペレーティングシステム用の`ffmpeg`実行ファイルが内蔵されています。実行環境に応じて、適切なバージョンの`ffmpeg`が自動的に選択されます：
+This tool includes `ffmpeg` executables for different operating systems. The appropriate version of `ffmpeg` is automatically selected based on the execution environment:
 
-- **Windows**：`ffmpeg/windows/ffmpeg.exe`
-- **Linux**：`ffmpeg/linux/ffmpeg`
+- **Windows**: `ffmpeg/windows/ffmpeg.exe`
+- **Linux**: `ffmpeg/linux/ffmpeg`
 
-`ffmpeg`が存在しないか実行できない場合、ツールはエラーメッセージを表示します。
+If `ffmpeg` does not exist or cannot be executed, the tool will display an error message.
 
-## エラー処理
+## Error Handling
 
-- **パスが存在しない**：指定されたパスが存在しない場合、プログラムはエラーメッセージを出力して終了します。
-- **サポートされていないファイル形式**：ファイルがサポートされている動画フォーマットでない場合、エラーが表示されます。
-- **ffmpeg処理エラー**：`ffmpeg`が動画処理中にエラーを起こした場合、エラーの詳細が出力されます。
-- **権限の問題（Linux）**：ツールは`ffmpeg`に実行権限を設定しようとします。失敗した場合、警告メッセージが表示されます。
+- **Path does not exist**: If the specified path does not exist, the program will output an error message and exit.
+- **Unsupported file format**: If a file is not in a supported video format, an error will be displayed.
+- **ffmpeg processing error**: If `ffmpeg` encounters an error during video processing, error details will be output.
+- **Permission issues (Linux)**: The tool attempts to set execution permissions for `ffmpeg`. If this fails, a warning message will be displayed.
