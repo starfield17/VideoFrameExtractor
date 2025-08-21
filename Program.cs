@@ -9,7 +9,7 @@ namespace VideoFrameExtractor
 {
     class Program
     {
-        // 定义支持的视频文件扩展名
+        // Define supported video file extensions
         static readonly string[] VIDEO_EXTENSIONS = { "mp4", "avi", "mkv", "mov", "flv", "wmv", "webm" };
 
         static int Main(string[] args)
@@ -23,10 +23,10 @@ namespace VideoFrameExtractor
             string command = args[0].ToLower();
             string inputPath = args[1];
 
-            // 检查输入路径是否存在
+            // Check if input path exists
             if (!Directory.Exists(inputPath) && !File.Exists(inputPath))
             {
-                Console.WriteLine($"错误: 路径 '{inputPath}' 不存在。");
+                Console.WriteLine($"Error: Path '{inputPath}' does not exist.");
                 return 1;
             }
 
@@ -42,7 +42,7 @@ namespace VideoFrameExtractor
                     HandleMergeVideo(inputPath);
                     break;
                 default:
-                    Console.WriteLine($"错误: 未知命令 '{command}'。");
+                    Console.WriteLine($"Error: Unknown command '{command}'.");
                     ShowUsage();
                     return 1;
             }
@@ -53,19 +53,19 @@ namespace VideoFrameExtractor
         static void ShowUsage()
         {
             Console.WriteLine("==============================================");
-            Console.WriteLine("          视频处理工具使用指南");
+            Console.WriteLine("          Video Processing Tool Guide");
             Console.WriteLine("==============================================");
-            Console.WriteLine("用法: VideoFrameExtractor <command> <path>");
+            Console.WriteLine("Usage: VideoFrameExtractor <command> <path>");
             Console.WriteLine("");
-            Console.WriteLine("命令说明:");
-            Console.WriteLine("  getframe      提取视频帧");
-            Console.WriteLine("  getmp4        将非 MP4 视频转换为 MP4 格式");
-            Console.WriteLine("  mergevideo    合并目录中的视频文件（递归处理每个子目录）");
+            Console.WriteLine("Command Description:");
+            Console.WriteLine("  getframe      Extract video frames");
+            Console.WriteLine("  getmp4        Convert non-MP4 videos to MP4 format");
+            Console.WriteLine("  mergevideo    Merge video files in directory (recursively process each subdirectory)");
             Console.WriteLine("");
-            Console.WriteLine("参数说明:");
-            Console.WriteLine("  <path>  指定单个视频文件或包含视频文件的目录。");
+            Console.WriteLine("Parameter Description:");
+            Console.WriteLine("  <path>  Specify a single video file or directory containing video files.");
             Console.WriteLine("");
-            Console.WriteLine("支持的视频格式:");
+            Console.WriteLine("Supported Video Formats:");
             Console.WriteLine("  mp4, avi, mkv, mov, flv, wmv, webm");
             Console.WriteLine("==============================================");
         }
@@ -82,34 +82,34 @@ namespace VideoFrameExtractor
         {
             if (Directory.Exists(inputPath))
             {
-                Console.WriteLine($"检测到目录: {inputPath}");
-                Console.WriteLine("开始处理目录中的视频文件...");
+                Console.WriteLine($"Detected directory: {inputPath}");
+                Console.WriteLine("Starting to process video files in directory...");
                 ProcessDirectory(inputPath, ProcessVideoForFrameExtraction);
-                Console.WriteLine("所有视频文件处理完成。");
+                Console.WriteLine("All video files processed.");
             }
             else if (File.Exists(inputPath))
             {
                 if (IsVideoFile(inputPath))
                 {
-                    Console.WriteLine($"处理单个视频文件: {inputPath}");
+                    Console.WriteLine($"Processing single video file: {inputPath}");
                     bool success = ProcessVideoForFrameExtraction(inputPath);
                     if (success)
                     {
-                        Console.WriteLine("视频文件处理完成。");
+                        Console.WriteLine("Video file processed successfully.");
                     }
                     else
                     {
-                        Console.WriteLine("视频文件处理失败。");
+                        Console.WriteLine("Video file processing failed.");
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"错误: 文件 '{inputPath}' 不是支持的视频格式。");
+                    Console.WriteLine($"Error: File '{inputPath}' is not a supported video format.");
                 }
             }
             else
             {
-                Console.WriteLine($"错误: '{inputPath}' 既不是文件也不是目录。");
+                Console.WriteLine($"Error: '{inputPath}' is neither a file nor a directory.");
             }
         }
 
@@ -117,7 +117,7 @@ namespace VideoFrameExtractor
         {
             if (!File.Exists(videoPath))
             {
-                Console.WriteLine($"错误: 文件 '{videoPath}' 不存在。");
+                Console.WriteLine($"Error: File '{videoPath}' does not exist.");
                 return false;
             }
 
@@ -128,19 +128,19 @@ namespace VideoFrameExtractor
             string outputDir = Path.Combine(videoDir, $"{videoName}_frames");
             Directory.CreateDirectory(outputDir);
 
-            // 获取当前操作系统
+            // Get current operating system
             string ffmpegPath = GetFfmpegPath();
 
             if (string.IsNullOrEmpty(ffmpegPath))
             {
-                Console.WriteLine("错误: 无法找到适用于当前操作系统的 ffmpeg。");
+                Console.WriteLine("Error: Cannot find ffmpeg for current operating system.");
                 return false;
             }
 
-            // 构建输出文件路径
+            // Build output file path
             string outputPattern = Path.Combine(outputDir, $"{videoName}_%d.png");
 
-            // 设置 ffmpeg 命令参数
+            // Set ffmpeg command parameters
             var startInfo = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
@@ -159,20 +159,20 @@ namespace VideoFrameExtractor
 
                     if (process.ExitCode == 0)
                     {
-                        Console.WriteLine($"帧已保存到目录: {outputDir}");
+                        Console.WriteLine($"Frames saved to directory: {outputDir}");
                         return true;
                     }
                     else
                     {
                         string error = process.StandardError.ReadToEnd();
-                        Console.WriteLine($"错误: ffmpeg 处理失败 - {error}");
+                        Console.WriteLine($"Error: ffmpeg processing failed - {error}");
                         return false;
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"错误: 无法启动 ffmpeg - {ex.Message}");
+                Console.WriteLine($"Error: Cannot start ffmpeg - {ex.Message}");
                 return false;
             }
         }
@@ -185,34 +185,34 @@ namespace VideoFrameExtractor
         {
             if (Directory.Exists(inputPath))
             {
-                Console.WriteLine($"检测到目录: {inputPath}");
-                Console.WriteLine("开始转换目录中的非 MP4 视频文件...");
+                Console.WriteLine($"Detected directory: {inputPath}");
+                Console.WriteLine("Starting to convert non-MP4 video files in directory...");
                 ProcessDirectory(inputPath, ConvertVideoToMp4);
-                Console.WriteLine("所有视频文件转换完成。");
+                Console.WriteLine("All video files converted.");
             }
             else if (File.Exists(inputPath))
             {
                 if (IsVideoFile(inputPath))
                 {
-                    Console.WriteLine($"处理单个视频文件: {inputPath}");
+                    Console.WriteLine($"Processing single video file: {inputPath}");
                     bool success = ConvertVideoToMp4(inputPath);
                     if (success)
                     {
-                        Console.WriteLine("视频文件转换完成。");
+                        Console.WriteLine("Video file converted successfully.");
                     }
                     else
                     {
-                        Console.WriteLine("视频文件转换失败。");
+                        Console.WriteLine("Video file conversion failed.");
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"错误: 文件 '{inputPath}' 不是支持的视频格式。");
+                    Console.WriteLine($"Error: File '{inputPath}' is not a supported video format.");
                 }
             }
             else
             {
-                Console.WriteLine($"错误: '{inputPath}' 既不是文件也不是目录。");
+                Console.WriteLine($"Error: '{inputPath}' is neither a file nor a directory.");
             }
         }
 
@@ -220,7 +220,7 @@ namespace VideoFrameExtractor
         {
             if (!File.Exists(videoPath))
             {
-                Console.WriteLine($"错误: 文件 '{videoPath}' 不存在。");
+                Console.WriteLine($"Error: File '{videoPath}' does not exist.");
                 return false;
             }
 
@@ -229,25 +229,25 @@ namespace VideoFrameExtractor
             string videoName = Path.GetFileNameWithoutExtension(videoPath);
             string videoExtension = Path.GetExtension(videoPath).TrimStart('.').ToLower();
 
-            // 如果已经是 mp4 格式，跳过转换
+            // If already in mp4 format, skip conversion
             if (videoExtension == "mp4")
             {
-                Console.WriteLine($"文件 '{videoPath}' 已经是 MP4 格式，跳过转换。");
+                Console.WriteLine($"File '{videoPath}' is already in MP4 format, skipping conversion.");
                 return true;
             }
 
             string outputPath = Path.Combine(videoDir, $"{videoName}.mp4");
 
-            // 获取当前操作系统
+            // Get current operating system
             string ffmpegPath = GetFfmpegPath();
 
             if (string.IsNullOrEmpty(ffmpegPath))
             {
-                Console.WriteLine("错误: 无法找到适用于当前操作系统的 ffmpeg。");
+                Console.WriteLine("Error: Cannot find ffmpeg for current operating system.");
                 return false;
             }
 
-            // 设置 ffmpeg 命令参数
+            // Set ffmpeg command parameters
             var startInfo = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
@@ -266,20 +266,20 @@ namespace VideoFrameExtractor
 
                     if (process.ExitCode == 0)
                     {
-                        Console.WriteLine($"已将 '{videoPath}' 转换为 '{outputPath}'");
+                        Console.WriteLine($"Converted '{videoPath}' to '{outputPath}'");
                         return true;
                     }
                     else
                     {
                         string error = process.StandardError.ReadToEnd();
-                        Console.WriteLine($"错误: ffmpeg 转换失败 - {error}");
+                        Console.WriteLine($"Error: ffmpeg conversion failed - {error}");
                         return false;
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"错误: 无法启动 ffmpeg - {ex.Message}");
+                Console.WriteLine($"Error: Cannot start ffmpeg - {ex.Message}");
                 return false;
             }
         }
@@ -292,29 +292,29 @@ namespace VideoFrameExtractor
         {
             if (Directory.Exists(inputPath))
             {
-                Console.WriteLine($"检测到目录: {inputPath}");
-                Console.WriteLine("开始递归合并目录中的视频文件...");
-                // 使用递归遍历所有子目录
+                Console.WriteLine($"Detected directory: {inputPath}");
+                Console.WriteLine("Starting to recursively merge video files in directory...");
+                // Use recursion to traverse all subdirectories
                 foreach (var dir in Directory.EnumerateDirectories(inputPath, "*", SearchOption.AllDirectories).Prepend(inputPath))
                 {
-                    Console.WriteLine($"处理目录: {dir}");
+                    Console.WriteLine($"Processing directory: {dir}");
                     bool success = MergeVideosInDirectory(dir);
                     if (!success)
                     {
-                        Console.WriteLine($"合并失败: {dir}");
+                        Console.WriteLine($"Merge failed: {dir}");
                     }
                 }
-                Console.WriteLine("所有目录中的视频文件合并完成。");
+                Console.WriteLine("All video files in all directories merged.");
             }
             else
             {
-                Console.WriteLine($"错误: 'mergevideo' 命令需要一个目录作为输入。");
+                Console.WriteLine($"Error: 'mergevideo' command requires a directory as input.");
             }
         }
 
         static bool MergeVideosInDirectory(string directoryPath)
         {
-            // 查找目录中的视频文件，并按名称排序
+            // Find video files in directory and sort by name
             var videoFiles = Directory.EnumerateFiles(directoryPath)
                                       .Where(file => IsVideoFile(file))
                                       .OrderBy(file => file)
@@ -324,13 +324,13 @@ namespace VideoFrameExtractor
 
             if (videoCount < 2)
             {
-                Console.WriteLine($"在目录 '{directoryPath}' 中的视频文件少于2个，跳过合并。");
-                return true; // 不是错误，只是没有需要合并的文件
+                Console.WriteLine($"Less than 2 video files in directory '{directoryPath}', skipping merge.");
+                return true; // Not an error, just no files to merge
             }
 
             string mergedVideoPath = Path.Combine(directoryPath, "merged_output.mp4");
 
-            // 创建临时文件列表
+            // Create temporary file list
             string tempFileListPath = Path.Combine(directoryPath, "file_list.txt");
             try
             {
@@ -343,16 +343,16 @@ namespace VideoFrameExtractor
                     }
                 }
 
-                // 获取当前操作系统
+                // Get current operating system
                 string ffmpegPath = GetFfmpegPath();
 
                 if (string.IsNullOrEmpty(ffmpegPath))
                 {
-                    Console.WriteLine("错误: 无法找到适用于当前操作系统的 ffmpeg。");
+                    Console.WriteLine("Error: Cannot find ffmpeg for current operating system.");
                     return false;
                 }
 
-                // 设置 ffmpeg 命令参数
+                // Set ffmpeg command parameters
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = ffmpegPath,
@@ -363,32 +363,32 @@ namespace VideoFrameExtractor
                     CreateNoWindow = true
                 };
 
-                // 执行合并命令
+                // Execute merge command
                 using (var process = Process.Start(startInfo))
                 {
                     process.WaitForExit();
 
                     if (process.ExitCode == 0)
                     {
-                        Console.WriteLine($"已合并目录 '{directoryPath}' 中的 {videoCount} 个视频为 '{mergedVideoPath}'");
+                        Console.WriteLine($"Merged {videoCount} videos in directory '{directoryPath}' into '{mergedVideoPath}'");
                         return true;
                     }
                     else
                     {
                         string error = process.StandardError.ReadToEnd();
-                        Console.WriteLine($"错误: ffmpeg 合并失败 - {error}");
+                        Console.WriteLine($"Error: ffmpeg merge failed - {error}");
                         return false;
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"错误: 合并视频时出错 - {ex.Message}");
+                Console.WriteLine($"Error: Error while merging videos - {ex.Message}");
                 return false;
             }
             finally
             {
-                // 删除临时文件列表
+                // Delete temporary file list
                 if (File.Exists(tempFileListPath))
                 {
                     try
@@ -397,7 +397,7 @@ namespace VideoFrameExtractor
                     }
                     catch
                     {
-                        // 忽略删除失败的错误
+                        // Ignore delete failure errors
                     }
                 }
             }
@@ -416,17 +416,17 @@ namespace VideoFrameExtractor
 
                 foreach (var file in files)
                 {
-                    Console.WriteLine($"处理视频文件: {file}");
+                    Console.WriteLine($"Processing video file: {file}");
                     bool success = processFunc(file);
                     if (!success)
                     {
-                        Console.WriteLine($"处理失败: {file}");
+                        Console.WriteLine($"Processing failed: {file}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"错误: 处理目录时出错 - {ex.Message}");
+                Console.WriteLine($"Error: Error while processing directory - {ex.Message}");
             }
         }
 
@@ -449,7 +449,7 @@ namespace VideoFrameExtractor
             }
             else
             {
-                // 可以根据需要添加更多平台支持
+                // Can add support for more platforms as needed
                 return null;
             }
 
@@ -460,7 +460,7 @@ namespace VideoFrameExtractor
                 return null;
             }
 
-            // 对非 Windows 系统的 ffmpeg 可执行文件赋予执行权限
+            // Grant execute permission to ffmpeg executable for non-Windows systems
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 try
@@ -482,7 +482,7 @@ namespace VideoFrameExtractor
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"警告: 无法设置 ffmpeg 执行权限 - {ex.Message}");
+                    Console.WriteLine($"Warning: Cannot set ffmpeg execute permission - {ex.Message}");
                 }
             }
 
