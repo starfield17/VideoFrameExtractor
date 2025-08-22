@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -7,488 +8,401 @@ using System.Runtime.InteropServices;
 
 namespace VideoFrameExtractor
 {
-    class Program
+    /// <summary>
+    /// Entry point and orchestration. Implements a thin CLI and delegates real work
+    /// to small, focused helpers to keep cyclomatic complexity low.
+    /// </summary>
+    internal static class Program
     {
-        // Define supported video file extensions
-        static readonly string[] VIDEO_EXTENSIONS = { "mp4", "avi", "mkv", "mov", "flv", "wmv", "webm" };
-
-        static int Main(string[] args)
+        private static int Main(string[] args)
         {
             if (args.Length < 2)
             {
-                ShowUsage();
+                Cli.PrintUsage();
                 return 1;
             }
 
-            string command = args[0].ToLower();
-            string inputPath = args[1];
+            var command = args[0].Trim().ToLowerInvariant();
+            var inputPath = args[1].Trim();
 
-            // Check if input path exists
-            if (!Directory.Exists(inputPath) && !File.Exists(inputPath))
+            if (!File.Exists(inputPath) && !Directory.Exists(inputPath))
             {
-                Console.WriteLine($"Error: Path '{inputPath}' does not exist.");
+                Console.Error.WriteLine($"Error: Path '{inputPath}' does not exist.");
                 return 1;
             }
 
-            switch (command)
+            try
             {
-                case "getframe":
-                    HandleGetFrame(inputPath);
-                    break;
-                case "getmp4":
-                    HandleGetMp4(inputPath);
-                    break;
-                case "mergevideo":
-                    HandleMergeVideo(inputPath);
-                    break;
-                default:
-                    Console.WriteLine($"Error: Unknown command '{command}'.");
-                    ShowUsage();
+                var ffmpeg = FfmpegLocator.TryLocate();
+                if (ffmpeg is null)
+                {
+                    Console.Error.WriteLine("Error: Could not locate ffmpeg for the current OS.");
                     return 1;
-            }
-
-            return 0;
-        }
-
-        static void ShowUsage()
-        {
-            Console.WriteLine("==============================================");
-            Console.WriteLine("          Video Processing Tool Guide");
-            Console.WriteLine("==============================================");
-            Console.WriteLine("Usage: VideoFrameExtractor <command> <path>");
-            Console.WriteLine("");
-            Console.WriteLine("Command Description:");
-            Console.WriteLine("  getframe      Extract video frames");
-            Console.WriteLine("  getmp4        Convert non-MP4 videos to MP4 format");
-            Console.WriteLine("  mergevideo    Merge video files in directory (recursively process each subdirectory)");
-            Console.WriteLine("");
-            Console.WriteLine("Parameter Description:");
-            Console.WriteLine("  <path>  Specify a single video file or directory containing video files.");
-            Console.WriteLine("");
-            Console.WriteLine("Supported Video Formats:");
-            Console.WriteLine("  mp4, avi, mkv, mov, flv, wmv, webm");
-            Console.WriteLine("==============================================");
-        }
-
-        static bool IsVideoFile(string filePath)
-        {
-            string extension = Path.GetExtension(filePath).TrimStart('.').ToLower();
-            return VIDEO_EXTENSIONS.Contains(extension);
-        }
-
-        #region GetFrame Functionality
-
-        static void HandleGetFrame(string inputPath)
-        {
-            if (Directory.Exists(inputPath))
-            {
-                Console.WriteLine($"Detected directory: {inputPath}");
-                Console.WriteLine("Starting to process video files in directory...");
-                ProcessDirectory(inputPath, ProcessVideoForFrameExtraction);
-                Console.WriteLine("All video files processed.");
-            }
-            else if (File.Exists(inputPath))
-            {
-                if (IsVideoFile(inputPath))
-                {
-                    Console.WriteLine($"Processing single video file: {inputPath}");
-                    bool success = ProcessVideoForFrameExtraction(inputPath);
-                    if (success)
-                    {
-                        Console.WriteLine("Video file processed successfully.");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Video file processing failed.");
-                    }
                 }
-                else
+
+                switch (command)
                 {
-                    Console.WriteLine($"Error: File '{inputPath}' is not a supported video format.");
+                    case "getframe":
+                        return new FrameExtractor(ffmpeg).Run(inputPath);
+                    case "getmp4":
+                        return new Mp4Converter(ffmpeg).Run(inputPath);
+                    case "mergevideo":
+                        return new VideoMerger(ffmpeg).Run(inputPath);
+                    case "help":
+                    case "-h":
+                    case "--help":
+                        Cli.PrintUsage();
+                        return 0;
+                    default:
+                        Console.Error.WriteLine($"Error: Unknown command '{command}'.\n");
+                        Cli.PrintUsage();
+                        return 1;
                 }
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine($"Error: '{inputPath}' is neither a file nor a directory.");
+                Console.Error.WriteLine($"Unexpected error: {ex.Message}");
+                return 1;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Command-line UI helper.
+    /// </summary>
+    internal static class Cli
+    {
+        public static void PrintUsage()
+        {
+            Console.WriteLine(
+                "VideoFrameExtractor\n" +
+                "Usage: VideoFrameExtractor <command> <path>\n\n" +
+                "Commands:\n" +
+                "  getframe     Extract 1 frame/sec as PNGs (dir or single file).\n" +
+                "  getmp4       Convert videos to MP4 using H.264 + AAC.\n" +
+                "  mergevideo   Concatenate videos in each directory into merged_output.mp4.\n\n" +
+                "Examples:\n" +
+                "  VideoFrameExtractor getframe ./clips\n" +
+                "  VideoFrameExtractor getmp4 video.avi\n" +
+                "  VideoFrameExtractor mergevideo ./datasets\n");
+        }
+    }
+
+    /// <summary>
+    /// Filesystem helpers and constants.
+    /// </summary>
+    internal static class Fs
+    {
+        private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv", ".webm"
+        };
+
+        public static bool IsVideo(string path) => VideoExtensions.Contains(Path.GetExtension(path));
+
+        public static IEnumerable<string> EnumerateVideos(string root)
+        {
+            if (File.Exists(root))
+            {
+                if (IsVideo(root)) yield return Path.GetFullPath(root);
+                yield break;
+            }
+
+            foreach (var file in Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories))
+            {
+                if (IsVideo(file)) yield return Path.GetFullPath(file);
             }
         }
 
-        static bool ProcessVideoForFrameExtraction(string videoPath)
+        public static IEnumerable<string> EnumerateImmediateVideos(string directory)
         {
-            if (!File.Exists(videoPath))
+            foreach (var file in Directory.EnumerateFiles(directory))
             {
-                Console.WriteLine($"Error: File '{videoPath}' does not exist.");
-                return false;
+                if (IsVideo(file)) yield return Path.GetFullPath(file);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Resolves ffmpeg path for the current platform and ensures non-Windows binaries are executable.
+    /// </summary>
+    internal static class FfmpegLocator
+    {
+        public static string? TryLocate()
+        {
+            var baseDir = AppContext.BaseDirectory;
+            string relative = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? Path.Combine("ffmpeg", "windows", "ffmpeg.exe")
+                : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                    ? Path.Combine("ffmpeg", "macos", "ffmpeg")
+                    : RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                        ? Path.Combine("ffmpeg", "linux", "ffmpeg")
+                        : string.Empty;
+
+            if (string.IsNullOrEmpty(relative)) return null;
+
+            var full = Path.Combine(baseDir, relative);
+            if (!File.Exists(full)) return null;
+
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                TryChmodX(full);
             }
 
-            string videoDir = Path.GetDirectoryName(videoPath);
-            string videoFilename = Path.GetFileName(videoPath);
-            string videoName = Path.GetFileNameWithoutExtension(videoPath);
+            return full;
+        }
 
-            string outputDir = Path.Combine(videoDir, $"{videoName}_frames");
-            Directory.CreateDirectory(outputDir);
-
-            // Get current operating system
-            string ffmpegPath = GetFfmpegPath();
-
-            if (string.IsNullOrEmpty(ffmpegPath))
+        private static void TryChmodX(string path)
+        {
+            try
             {
-                Console.WriteLine("Error: Cannot find ffmpeg for current operating system.");
-                return false;
+                using var p = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "chmod",
+                    Arguments = $"+x \"{path}\"",
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                p?.WaitForExit();
             }
-
-            // Build output file path
-            string outputPattern = Path.Combine(outputDir, $"{videoName}_%d.png");
-
-            // Set ffmpeg command parameters
-            var startInfo = new ProcessStartInfo
+            catch
             {
-                FileName = ffmpegPath,
-                Arguments = $"-i \"{videoPath}\" -vf fps=1 \"{outputPattern}\" -hide_banner -loglevel error",
+                // non-fatal on platforms without chmod
+            }
+        }
+    }
+
+    /// <summary>
+    /// Thin wrapper for executing ffmpeg commands.
+    /// </summary>
+    internal sealed class Ffmpeg
+    {
+        public Ffmpeg(string path) => PathToExe = path;
+        private string PathToExe { get; }
+
+        public int Run(string arguments)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = PathToExe,
+                Arguments = arguments,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
 
+            using var proc = Process.Start(psi);
+            if (proc is null) throw new InvalidOperationException("Failed to start ffmpeg process.");
+            proc.WaitForExit();
+
+            if (proc.ExitCode != 0)
+            {
+                string error = proc.StandardError.ReadToEnd();
+                throw new InvalidOperationException($"ffmpeg failed (code {proc.ExitCode}). Error: {error}");
+            }
+
+            return proc.ExitCode;
+        }
+    }
+
+    /// <summary>
+    /// Base class with shared helpers for operations that accept either a file or directory input.
+    /// </summary>
+    internal abstract class Operation
+    {
+        protected Operation(string ffmpegPath)
+        {
+            Ffmpeg = new Ffmpeg(ffmpegPath);
+        }
+
+        protected Ffmpeg Ffmpeg { get; }
+
+        public int Run(string inputPath)
+        {
+            if (File.Exists(inputPath))
+            {
+                return HandleFile(inputPath) ? 0 : 1;
+            }
+
+            int failures = 0;
+            foreach (var file in Fs.EnumerateVideos(inputPath))
+            {
+                Console.WriteLine($"Processing: {file}");
+                if (!HandleFile(file))
+                {
+                    Console.Error.WriteLine($"Failed: {file}");
+                    failures++;
+                }
+            }
+
+            return failures == 0 ? 0 : 1;
+        }
+
+        protected abstract bool HandleFile(string path);
+    }
+
+    /// <summary>
+    /// Extracts 1 FPS PNG frames into <videoName>_frames directory.
+    /// </summary>
+    internal sealed class FrameExtractor : Operation
+    {
+        public FrameExtractor(string ffmpegPath) : base(ffmpegPath) { }
+
+        protected override bool HandleFile(string path)
+        {
+            if (!Fs.IsVideo(path))
+            {
+                Console.Error.WriteLine($"Skip (not a supported video): {path}");
+                return false;
+            }
+
+            var dir = Path.GetDirectoryName(path)!;
+            var name = Path.GetFileNameWithoutExtension(path);
+            var outDir = Path.Combine(dir, $"{name}_frames");
+            Directory.CreateDirectory(outDir);
+
+            var outputPattern = Path.Combine(outDir, $"{name}_%d.png");
+            var args = $"-i \"{path}\" -vf fps=1 \"{outputPattern}\" -hide_banner -loglevel error";
+
             try
             {
-                using (var process = Process.Start(startInfo))
-                {
-                    process.WaitForExit();
-
-                    if (process.ExitCode == 0)
-                    {
-                        Console.WriteLine($"Frames saved to directory: {outputDir}");
-                        return true;
-                    }
-                    else
-                    {
-                        string error = process.StandardError.ReadToEnd();
-                        Console.WriteLine($"Error: ffmpeg processing failed - {error}");
-                        return false;
-                    }
-                }
+                Ffmpeg.Run(args);
+                Console.WriteLine($"Frames saved to: {outDir}");
+                return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: Cannot start ffmpeg - {ex.Message}");
+                Console.Error.WriteLine($"Error extracting frames: {ex.Message}");
                 return false;
             }
         }
+    }
 
-        #endregion
+    /// <summary>
+    /// Converts any non-MP4 video into H.264/AAC MP4 next to the source.
+    /// </summary>
+    internal sealed class Mp4Converter : Operation
+    {
+        public Mp4Converter(string ffmpegPath) : base(ffmpegPath) { }
 
-        #region GetMp4 Functionality
-
-        static void HandleGetMp4(string inputPath)
+        protected override bool HandleFile(string path)
         {
-            if (Directory.Exists(inputPath))
+            if (!Fs.IsVideo(path))
             {
-                Console.WriteLine($"Detected directory: {inputPath}");
-                Console.WriteLine("Starting to convert non-MP4 video files in directory...");
-                ProcessDirectory(inputPath, ConvertVideoToMp4);
-                Console.WriteLine("All video files converted.");
-            }
-            else if (File.Exists(inputPath))
-            {
-                if (IsVideoFile(inputPath))
-                {
-                    Console.WriteLine($"Processing single video file: {inputPath}");
-                    bool success = ConvertVideoToMp4(inputPath);
-                    if (success)
-                    {
-                        Console.WriteLine("Video file converted successfully.");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Video file conversion failed.");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"Error: File '{inputPath}' is not a supported video format.");
-                }
-            }
-            else
-            {
-                Console.WriteLine($"Error: '{inputPath}' is neither a file nor a directory.");
-            }
-        }
-
-        static bool ConvertVideoToMp4(string videoPath)
-        {
-            if (!File.Exists(videoPath))
-            {
-                Console.WriteLine($"Error: File '{videoPath}' does not exist.");
+                Console.Error.WriteLine($"Skip (not a supported video): {path}");
                 return false;
             }
 
-            string videoDir = Path.GetDirectoryName(videoPath);
-            string videoFilename = Path.GetFileName(videoPath);
-            string videoName = Path.GetFileNameWithoutExtension(videoPath);
-            string videoExtension = Path.GetExtension(videoPath).TrimStart('.').ToLower();
-
-            // If already in mp4 format, skip conversion
-            if (videoExtension == "mp4")
+            if (string.Equals(Path.GetExtension(path), ".mp4", StringComparison.OrdinalIgnoreCase))
             {
-                Console.WriteLine($"File '{videoPath}' is already in MP4 format, skipping conversion.");
+                Console.WriteLine($"Already MP4, skipping: {path}");
                 return true;
             }
 
-            string outputPath = Path.Combine(videoDir, $"{videoName}.mp4");
-
-            // Get current operating system
-            string ffmpegPath = GetFfmpegPath();
-
-            if (string.IsNullOrEmpty(ffmpegPath))
-            {
-                Console.WriteLine("Error: Cannot find ffmpeg for current operating system.");
-                return false;
-            }
-
-            // Set ffmpeg command parameters
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                Arguments = $"-i \"{videoPath}\" -c:v libx264 -c:a aac \"{outputPath}\" -hide_banner -loglevel error",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+            var dir = Path.GetDirectoryName(path)!;
+            var name = Path.GetFileNameWithoutExtension(path);
+            var outPath = Path.Combine(dir, name + ".mp4");
+            var args = $"-i \"{path}\" -c:v libx264 -c:a aac \"{outPath}\" -hide_banner -loglevel error";
 
             try
             {
-                using (var process = Process.Start(startInfo))
-                {
-                    process.WaitForExit();
-
-                    if (process.ExitCode == 0)
-                    {
-                        Console.WriteLine($"Converted '{videoPath}' to '{outputPath}'");
-                        return true;
-                    }
-                    else
-                    {
-                        string error = process.StandardError.ReadToEnd();
-                        Console.WriteLine($"Error: ffmpeg conversion failed - {error}");
-                        return false;
-                    }
-                }
+                Ffmpeg.Run(args);
+                Console.WriteLine($"Converted to: {outPath}");
+                return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: Cannot start ffmpeg - {ex.Message}");
+                Console.Error.WriteLine($"Error converting to mp4: {ex.Message}");
                 return false;
             }
         }
+    }
 
-        #endregion
+    /// <summary>
+    /// Concatenates videos within each directory into a single merged_output.mp4.
+    /// If inputPath is a directory, it processes that directory AND each subdirectory.
+    /// If inputPath is a file, it processes only that file's directory.
+    /// </summary>
+    internal sealed class VideoMerger
+    {
+        private readonly Ffmpeg _ffmpeg;
+        public VideoMerger(string ffmpegPath) => _ffmpeg = new Ffmpeg(ffmpegPath);
 
-        #region MergeVideo Functionality
-
-        static void HandleMergeVideo(string inputPath)
+        public int Run(string inputPath)
         {
-            if (Directory.Exists(inputPath))
+            var directories = Directory.Exists(inputPath)
+                ? Directory.EnumerateDirectories(inputPath, "*", SearchOption.AllDirectories).Prepend(inputPath)
+                : new[] { Path.GetDirectoryName(Path.GetFullPath(inputPath))! };
+
+            int failures = 0;
+            foreach (var dir in directories)
             {
-                Console.WriteLine($"Detected directory: {inputPath}");
-                Console.WriteLine("Starting to recursively merge video files in directory...");
-                // Use recursion to traverse all subdirectories
-                foreach (var dir in Directory.EnumerateDirectories(inputPath, "*", SearchOption.AllDirectories).Prepend(inputPath))
-                {
-                    Console.WriteLine($"Processing directory: {dir}");
-                    bool success = MergeVideosInDirectory(dir);
-                    if (!success)
-                    {
-                        Console.WriteLine($"Merge failed: {dir}");
-                    }
-                }
-                Console.WriteLine("All video files in all directories merged.");
+                if (!MergeDirectory(dir)) failures++;
             }
-            else
-            {
-                Console.WriteLine($"Error: 'mergevideo' command requires a directory as input.");
-            }
+
+            return failures == 0 ? 0 : 1;
         }
 
-        static bool MergeVideosInDirectory(string directoryPath)
-        {
-            // Find video files in directory and sort by name
-            var videoFiles = Directory.EnumerateFiles(directoryPath)
-                                      .Where(file => IsVideoFile(file))
-                                      .OrderBy(file => file)
-                                      .ToList();
-
-            int videoCount = videoFiles.Count;
-
-            if (videoCount < 2)
-            {
-                Console.WriteLine($"Less than 2 video files in directory '{directoryPath}', skipping merge.");
-                return true; // Not an error, just no files to merge
-            }
-
-            string mergedVideoPath = Path.Combine(directoryPath, "merged_output.mp4");
-
-            // Create temporary file list
-            string tempFileListPath = Path.Combine(directoryPath, "file_list.txt");
-            try
-            {
-                using (var writer = new StreamWriter(tempFileListPath))
-                {
-                    foreach (var video in videoFiles)
-                    {
-                        string absolutePath = Path.GetFullPath(video).Replace("'", "'\\''");
-                        writer.WriteLine($"file '{absolutePath}'");
-                    }
-                }
-
-                // Get current operating system
-                string ffmpegPath = GetFfmpegPath();
-
-                if (string.IsNullOrEmpty(ffmpegPath))
-                {
-                    Console.WriteLine("Error: Cannot find ffmpeg for current operating system.");
-                    return false;
-                }
-
-                // Set ffmpeg command parameters
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = ffmpegPath,
-                    Arguments = $"-f concat -safe 0 -i \"{tempFileListPath}\" -c copy \"{mergedVideoPath}\" -hide_banner -loglevel error",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                // Execute merge command
-                using (var process = Process.Start(startInfo))
-                {
-                    process.WaitForExit();
-
-                    if (process.ExitCode == 0)
-                    {
-                        Console.WriteLine($"Merged {videoCount} videos in directory '{directoryPath}' into '{mergedVideoPath}'");
-                        return true;
-                    }
-                    else
-                    {
-                        string error = process.StandardError.ReadToEnd();
-                        Console.WriteLine($"Error: ffmpeg merge failed - {error}");
-                        return false;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error: Error while merging videos - {ex.Message}");
-                return false;
-            }
-            finally
-            {
-                // Delete temporary file list
-                if (File.Exists(tempFileListPath))
-                {
-                    try
-                    {
-                        File.Delete(tempFileListPath);
-                    }
-                    catch
-                    {
-                        // Ignore delete failure errors
-                    }
-                }
-            }
-        }
-
-        #endregion
-
-        #region Common Methods
-
-        static void ProcessDirectory(string directoryPath, Func<string, bool> processFunc)
+        private bool MergeDirectory(string directory)
         {
             try
             {
-                var files = Directory.EnumerateFiles(directoryPath, "*.*", SearchOption.AllDirectories)
-                                     .Where(file => IsVideoFile(file));
+                var videos = Fs.EnumerateImmediateVideos(directory)
+                                .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+                                .ToList();
 
-                foreach (var file in files)
+                if (videos.Count < 2)
                 {
-                    Console.WriteLine($"Processing video file: {file}");
-                    bool success = processFunc(file);
-                    if (!success)
-                    {
-                        Console.WriteLine($"Processing failed: {file}");
-                    }
+                    Console.WriteLine($"Skip merge (need >=2 videos): {directory}");
+                    return true; // Not an error
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error: Error while processing directory - {ex.Message}");
-            }
-        }
 
-        static string GetFfmpegPath()
-        {
-            string baseDir = AppContext.BaseDirectory;
-            string ffmpegRelativePath = string.Empty;
+                var listPath = Path.Combine(directory, "file_list.txt");
+                WriteConcatList(listPath, videos);
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                ffmpegRelativePath = Path.Combine("ffmpeg", "windows", "ffmpeg.exe");
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
-                ffmpegRelativePath = Path.Combine("ffmpeg", "linux", "ffmpeg");
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                ffmpegRelativePath = Path.Combine("ffmpeg", "macos", "ffmpeg");
-            }
-            else
-            {
-                // Can add support for more platforms as needed
-                return null;
-            }
+                var merged = Path.Combine(directory, "merged_output.mp4");
+                var args = $"-f concat -safe 0 -i \"{listPath}\" -c copy \"{merged}\" -hide_banner -loglevel error";
 
-            string ffmpegFullPath = Path.Combine(baseDir, ffmpegRelativePath);
-
-            if (!File.Exists(ffmpegFullPath))
-            {
-                return null;
-            }
-
-            // Grant execute permission to ffmpeg executable for non-Windows systems
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
                 try
                 {
-                    var chmod = new Process
-                    {
-                        StartInfo = new ProcessStartInfo
-                        {
-                            FileName = "chmod",
-                            Arguments = $"+x \"{ffmpegFullPath}\"",
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true,
-                            UseShellExecute = false,
-                            CreateNoWindow = true
-                        }
-                    };
-                    chmod.Start();
-                    chmod.WaitForExit();
+                    _ffmpeg.Run(args);
+                    Console.WriteLine($"Merged {videos.Count} files -> {merged}");
+                    return true;
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Warning: Cannot set ffmpeg execute permission - {ex.Message}");
+                    Console.Error.WriteLine($"Error merging in '{directory}': {ex.Message}");
+                    return false;
+                }
+                finally
+                {
+                    SafeDelete(listPath);
                 }
             }
-
-            return ffmpegFullPath;
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error preparing merge in '{directory}': {ex.Message}");
+                return false;
+            }
         }
 
-        #endregion
+        private static void WriteConcatList(string listPath, IEnumerable<string> videos)
+        {
+            using var writer = new StreamWriter(listPath);
+            foreach (var v in videos)
+            {
+                // ffmpeg concat demuxer expects paths quoted like: file 'absolutePath'
+                var escaped = v.Replace("'", "'\\''");
+                writer.WriteLine($"file '{escaped}'");
+            }
+        }
+
+        private static void SafeDelete(string path)
+        {
+            try { if (File.Exists(path)) File.Delete(path); } catch { /* ignore */ }
+        }
     }
 }
